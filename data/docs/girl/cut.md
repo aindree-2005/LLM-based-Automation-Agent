@@ -1,0 +1,2 @@
+
+# Prevent vote student.
