@@ -100,15 +100,16 @@ def A5(log_dir_path='logs', output_file_path='logs-recent.txt', num_files=10):
                 f_out.write(f"{first_line}\n")
 
 def A6(doc_dir_path='docs', output_file_path='docs/index.json'):
-    docs_dir = DATA_ROOT / doc_dir_path
-    output_file = DATA_ROOT / output_file_path
+    docs_dir = doc_dir_path
+    output_file = output_file_path
     index_data = {}
 
     # Walk through all files in the docs directory
     for root, _, files in os.walk(docs_dir):
         for file in files:
             if file.endswith('.md'):
-                file_path = Path(root) / file
+                # print(file)
+                file_path = os.path.join(root, file)
                 # Read the file and find the first occurrence of an H1
                 with open(file_path, 'r', encoding='utf-8') as f:
                     for line in f:
@@ -116,11 +117,11 @@ def A6(doc_dir_path='docs', output_file_path='docs/index.json'):
                             # Extract the title text after '# '
                             title = line[2:].strip()
                             # Get the relative path without the prefix
-                            relative_path = str(file_path.relative_to(docs_dir)).replace('\\', '/')
+                            relative_path = os.path.relpath(file_path, docs_dir).replace('\\', '/')
                             index_data[relative_path] = title
                             break  # Stop after the first H1
-
     # Write the index data to index.json
+    # print(index_data)
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(index_data, f, indent=4)
 def A7(filename='email.txt', output_file='email-sender.txt'):
@@ -195,41 +196,30 @@ def get_embedding(text):
     response = requests.post("http://aiproxy.sanand.workers.dev/openai/v1/embeddings", headers=headers, data=json.dumps(data))
     response.raise_for_status()
     return response.json()["data"][0]["embedding"]
-from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
-import numpy as np
-def A9(filename=DATA_ROOT / 'comments.txt', output_filename=DATA_ROOT / 'comments-similar.txt'):
-    # Load Sentence Transformer model
-    model = SentenceTransformer('all-MiniLM-L6-v2')
 
+def A9(filename='/data/comments.txt', output_filename='/data/comments-similar.txt'):
     # Read comments
-    with open(filename, 'r', encoding='utf-8') as f:
-        comments = [line.strip() for line in f.readlines() if line.strip()]  # Remove empty lines
+    with open(filename, 'r') as f:
+        comments = [line.strip() for line in f.readlines()]
 
-    # Ensure at least two comments exist
-    if len(comments) < 2:
-        print("Not enough comments to find similarities.")
-        return
-
-    # Compute embeddings
-    embeddings = model.encode(comments, convert_to_numpy=True)
-
-    # Compute cosine similarity matrix
-    similarity_matrix = cosine_similarity(embeddings)
-
-    # Ignore self-similarity by setting diagonal to -1
-    np.fill_diagonal(similarity_matrix, -1)
+    # Get embeddings for all comments
+    embeddings = [get_embedding(comment) for comment in comments]
 
     # Find the most similar pair
-    max_index = np.unravel_index(np.argmax(similarity_matrix), similarity_matrix.shape)
-    most_similar = (comments[max_index[0]], comments[max_index[1]])
+    min_distance = float('inf')
+    most_similar = (None, None)
+
+    for i in range(len(comments)):
+        for j in range(i + 1, len(comments)):
+            distance = cosine(embeddings[i], embeddings[j])
+            if distance < min_distance:
+                min_distance = distance
+                most_similar = (comments[i], comments[j])
 
     # Write the most similar pair to file
-    with open(output_filename, 'w', encoding='utf-8') as f:
+    with open(output_filename, 'w') as f:
         f.write(most_similar[0] + '\n')
         f.write(most_similar[1] + '\n')
-
-    print(f"Most similar comments saved to {output_filename}")
 def A10(filename='ticket-sales.db', output_filename='ticket-sales-gold.txt', query="SELECT SUM(units * price) FROM tickets WHERE type = 'Gold'"):
     # Connect to the SQLite database
     conn = sqlite3.connect(DATA_ROOT / filename)
